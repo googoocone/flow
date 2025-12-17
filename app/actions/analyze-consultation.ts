@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/utils/supabase/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { transcribeWithClova } from '@/utils/clova'
 import { redirect } from 'next/navigation'
 
 const DUMMY_TRANSCRIPT = `
@@ -44,10 +45,42 @@ export async function analyzeConsultation(formData: FormData) {
     throw new Error('Missing required fields')
   }
 
-  // 1. Mock STT (In reality, we would send audio to STT API)
-  console.log('Step 1: Mock STT')
-  const actualTranscript = formData.get('actualTranscript') as string
-  const transcript = actualTranscript || DUMMY_TRANSCRIPT
+  // ... (imports remain)
+
+  // ... (imports remain)
+
+  // ... (inside function)
+  // 1. STT: Download from Supabase and transcribe via Clova
+  console.log('Step 1: STT (Clova Speech)')
+  let transcript = ''
+
+  // Download file from Supabase to send to Clova
+  // The 'filePath' usually comes as full path "folder/filename.ext", but supabase download needs just filename if bucket is separate, 
+  // or path inside bucket. AdminForm uploads to 'recordings' bucket with filename.
+  // The AdminForm sends `data.path` which is usually just the filename if uploaded to root of bucket.
+
+  const { data: fileBlob, error: downloadError } = await (await createServerSupabaseClient())
+    .storage
+    .from('recordings')
+    .download(filePath)
+
+  if (downloadError || !fileBlob) {
+    console.error('File Download Error:', downloadError)
+    throw new Error('Failed to download recording for transcription')
+  }
+
+  try {
+    transcript = await transcribeWithClova(fileBlob, filePath.split('/').pop() || 'audio')
+  } catch (sttError) {
+    console.error('STT Failed, using fallback/empty:', sttError)
+    // Optional: Throw error or proceed with empty? usually throw is better for feedback
+    throw new Error('STT Analysis Failed: ' + (sttError as any).message)
+  }
+
+  // Use transcript in prompt
+  console.log('Transcription Length:', transcript.length)
+
+
 
   // 2. Gemini Analysis
   console.log('Step 2: Gemini Analysis')
