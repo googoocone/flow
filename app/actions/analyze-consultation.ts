@@ -129,19 +129,26 @@ export async function analyzeConsultation(formData: FormData) {
     throw new Error('Failed to parse analysis result')
   }
 
+  // Get current user to link consultation
+  const { data: { user } } = await (await createServerSupabaseClient()).auth.getUser()
+  const userId = user?.id
+
   // 3. Save to Supabase
-  const supabase = createServerSupabaseClient()
+  console.log('Step 3: Save to Supabase')
+  const supabase = await createServerSupabaseClient()
 
   const { data, error } = await supabase
     .from('consultations')
     .insert({
+      user_id: userId,
       counselor_name: counselorName,
       client_name: clientName,
       client_phone: clientPhone,
       case_type: caseType,
-      audio_url: filePath,
-      transcript: transcript,
-      analysis_result: analysisJson
+      record_file_path: filePath,
+      transcript: transcript, // We save the transcript
+      analysis_result: analysisJson,
+      status: 'completed'
     })
     .select()
     .single()

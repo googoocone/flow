@@ -1,12 +1,16 @@
 import { createServerSupabaseClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
-import { CheckCircle2, FileText, TrendingDown, Wallet, AlertTriangle, Bot } from 'lucide-react'
+import { CheckCircle2, FileText, TrendingDown, Wallet, AlertTriangle, Bot, Phone } from 'lucide-react'
 import CountUpNumber from '@/app/components/CountUpNumber'
 
 export default async function ReportPage({ params }: { params: { id: string } }) {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
 
     const { id } = await params
+
+    // Fetch user for auth check
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data: consultation, error } = await supabase
         .from('consultations')
         .select('*')
@@ -21,18 +25,56 @@ export default async function ReportPage({ params }: { params: { id: string } })
     // Type assertion or safe access
     const report = analysis_result as any
 
+    // Fetch branding profile if available
+    let branding = null
+    if (consultation.user_id) {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', consultation.user_id)
+            .single()
+        branding = profile
+    }
+
+    // Determine display text for case type
+    const caseTypeDisplay = consultation.case_type === 'bankruptcy' ? '개인파산' : '개인회생'
+
     return (
         <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-amber-500 selection:text-white">
             {/* 1. Header Section */}
             <header className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-16 px-4 text-center relative overflow-hidden animate-fade-in-up">
                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
                 <div className="max-w-4xl mx-auto relative z-10">
-                    <div className="inline-block bg-[#F59E0B] p-2 rounded-lg mb-6 shadow-lg shadow-amber-500/20 transform hover:scale-105 transition-transform duration-300">
-                        <span className="font-bold text-white text-lg">法</span>
+                    <div className="flex flex-col items-center mb-6 relative">
+                        {/* Edit Button for Owner */}
+                        {consultation.user_id === user?.id && (
+                            <div className="absolute top-0 right-0 md:absolute md:right-[-100px]">
+                                <a
+                                    href={`/dashboard/reports/${consultation.id}/edit`}
+                                    className="inline-flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-sm font-semibold text-white border border-white/20 transition-all"
+                                >
+                                    ✏️ 수정하기
+                                </a>
+                            </div>
+                        )}
+
+                        {branding?.logo_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={branding.logo_url} alt="Company Logo" className="h-16 w-auto mb-4 bg-white p-2 rounded-lg shadow-lg" />
+                        ) : branding?.company_name ? (
+                            <div className="inline-block bg-white/10 backdrop-blur-md px-4 py-2 rounded-lg mb-4 text-sm font-bold tracking-widest text-slate-200 border border-white/20">
+                                {branding.company_name}
+                            </div>
+                        ) : (
+                            <div className="inline-block bg-[#F59E0B] p-2 rounded-lg mb-6 shadow-lg shadow-amber-500/20 transform hover:scale-105 transition-transform duration-300">
+                                <span className="font-bold text-white text-lg">法</span>
+                            </div>
+                        )}
+                        <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight leading-tight">
+                            {caseTypeDisplay} 상담 보고서
+                        </h1>
                     </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold mb-4 tracking-tight leading-tight">
-                        개인회생 상담 보고서
-                    </h1>
+
                     <p className="text-slate-300 text-base md:text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
                         <span className="font-semibold text-white">{consultation.client_name}</span>님을 위한 맞춤형 채무 조정 솔루션을 제안합니다.
                     </p>
@@ -40,13 +82,22 @@ export default async function ReportPage({ params }: { params: { id: string } })
                     <div className="inline-flex flex-col md:flex-row items-center md:space-x-8 space-y-2 md:space-y-0 text-sm font-medium text-slate-300 bg-white/5 border border-white/10 px-8 py-3 rounded-full backdrop-blur-md">
                         <span className="flex items-center">
                             <span className="w-2 h-2 rounded-full bg-green-400 mr-2 animate-pulse"></span>
-                            상담일: {new Date(consultation.created_at).toLocaleDateString()}
+                            상담일: {new Date(consultation.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\. /g, '/').replace('.', '')}
                         </span>
                         <span className="hidden md:block w-px h-4 bg-white/20"></span>
                         <span className="flex items-center">
                             <span className="mr-2">👨‍💼</span>
-                            담당자: {consultation.counselor_name || '김상담'}
+                            담당자: {consultation.counselor_name || branding?.name || '김상담'} {branding?.job_title && <span className="text-slate-400 ml-1">({branding.job_title})</span>}
                         </span>
+                        {branding?.company_phone && (
+                            <>
+                                <span className="hidden md:block w-px h-4 bg-white/20"></span>
+                                <span className="flex items-center">
+                                    <span className="mr-2">📞</span>
+                                    {branding.company_phone}
+                                </span>
+                            </>
+                        )}
                     </div>
                 </div>
             </header>
@@ -238,7 +289,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
                         <div className="bg-white rounded-3xl p-8 border border-green-200 shadow-xl relative overflow-hidden transform md:scale-105 md:-translate-y-2 z-0">
                             <div className="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
                             <h3 className="text-xl font-bold text-green-600 mb-6 text-center flex items-center justify-center">
-                                개인회생 진행 시 🎉
+                                {caseTypeDisplay} 진행 시 🎉
                             </h3>
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center border-b border-green-50 pb-4">
@@ -325,7 +376,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
                 <section className="animate-fade-in-up delay-500">
                     <div className="flex items-center mb-8">
                         <div className="bg-slate-900 text-white w-8 h-8 rounded-lg flex items-center justify-center mr-4 font-bold text-sm shadow-md shrink-0">6</div>
-                        <h2 className="text-2xl font-bold text-slate-900">개인회생 진행 시 {consultation.client_name}님이 얻게 되는 구체적 실익</h2>
+                        <h2 className="text-2xl font-bold text-slate-900">{caseTypeDisplay} 진행 시 {consultation.client_name}님이 얻게 되는 구체적 실익</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-4">
                         {(report.expected_benefits && report.expected_benefits.length > 0 ? report.expected_benefits : [
@@ -352,14 +403,76 @@ export default async function ReportPage({ params }: { params: { id: string } })
             </main>
 
             {/* Footer CTA */}
-            <footer className="bg-slate-900 py-20 px-4 text-center relative overflow-hidden">
-                <div className="max-w-3xl mx-auto text-white relative z-10">
-                    <h2 className="text-3xl font-bold mb-6">지금 바로 시작하세요</h2>
-                    <p className="text-slate-400 mb-10 text-lg">개인회생은 망설일수록 빚만 늘어납니다. 전문가와 함께 새출발하세요.</p>
+            <footer className="bg-slate-900 py-24 px-4 relative overflow-hidden">
+                {/* Background Decoration */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                    <div className="bg-white/5 rounded-3xl p-8 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors duration-300 inline-block w-full max-w-sm">
-                        <p className="text-sm text-slate-300 mb-2 uppercase tracking-widest font-semibold">무료 상담 문의</p>
-                        <p className="text-4xl font-extrabold text-[#F59E0B] tracking-tight">02-1234-5678</p>
+                <div className="max-w-4xl mx-auto relative z-10 space-y-16">
+                    {/* 1. Main Call CTA */}
+                    <div className="text-center">
+                        <h2 className="text-3xl md:text-4xl font-bold text-white mb-6 leading-tight">
+                            아직 고민하고 계신가요?
+                        </h2>
+                        <p className="text-slate-400 mb-10 text-lg max-w-2xl mx-auto">
+                            혼자 고민하면 빚은 더 늘어날 뿐입니다.<br className="hidden md:block" />
+                            지금 바로 전문가와 상의하여 <span className="text-white font-bold">이자 100% 면제</span>와 <span className="text-white font-bold">추심 중단</span>의 기회를 잡으세요.
+                        </p>
+
+                        <div className="inline-block relative group">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-orange-600 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                            <a
+                                href={`tel:${branding?.company_phone || '02-1234-5678'}`}
+                                className="relative flex items-center bg-slate-900 border border-slate-700 hover:border-amber-500/50 rounded-2xl px-10 py-6 transition-all duration-300 transform group-hover:-translate-y-1"
+                            >
+                                <div className="mr-6 bg-gradient-to-br from-amber-400 to-orange-500 w-16 h-16 rounded-full flex items-center justify-center shadow-lg">
+                                    <Phone className="w-8 h-8 text-white fill-current" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-amber-500 font-bold text-sm tracking-widest mb-1 uppercase">무료 상담 문의</p>
+                                    <p className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                                        {branding?.company_phone || '02-1234-5678'}
+                                    </p>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    {/* 2. Divider */}
+                    <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent"></div>
+
+                    {/* 3. Bank Account Info (Secondary) */}
+                    {(branding?.bank_name && branding?.account_number) && (
+                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-3xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8 max-w-3xl mx-auto">
+                            <div className="text-center md:text-left">
+                                <div className="flex items-center justify-center md:justify-start space-x-3 mb-3">
+                                    <div className="bg-slate-700 p-2 rounded-lg">
+                                        <Wallet className="w-6 h-6 text-slate-300" />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white">수임료 입금 계좌 안내</h3>
+                                </div>
+                                <p className="text-slate-400 text-sm">
+                                    반드시 <span className="text-white font-bold underline decoration-slate-500 decoration-1 underline-offset-4">의뢰인 성함</span>으로 입금해주시기 바랍니다.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col items-center md:items-end bg-slate-900/80 p-6 rounded-2xl border border-slate-700 w-full md:w-auto min-w-[300px]">
+                                <span className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">{branding.bank_name}</span>
+                                <div className="flex items-center space-x-2 mb-2">
+                                    <span className="text-2xl font-mono font-bold text-white tracking-wider">{branding.account_number}</span>
+                                    {/* Copy Button (Optional, purely visual for now) */}
+                                    {/* <button className="text-slate-500 hover:text-white transition"><Copy className="w-4 h-4" /></button> */}
+                                </div>
+                                <span className="text-sm text-slate-400">
+                                    예금주: <span className="text-slate-200 font-bold">{branding.company_name || '법무법인'}</span>
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Footer Warning / Legal */}
+                    <div className="text-center text-slate-600 text-xs leading-relaxed max-w-2xl mx-auto pt-8">
+                        <p>본 리포트는 제공된 정보를 바탕으로 AI가 분석한 예상 결과이며, 법적 효력은 없습니다.</p>
+                        <p>구체적인 진행 가능 여부는 반드시 변호사/법무사와 상세 상담을 통해 확인하시기 바랍니다.</p>
                     </div>
                 </div>
             </footer>

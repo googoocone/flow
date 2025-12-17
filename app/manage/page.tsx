@@ -4,7 +4,7 @@ import { Check, Shield, UserX, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-export default async function AdminPage() {
+export default async function ManageUsersPage() {
     const supabase = await createServerSupabaseClient()
 
     // Check admin access
@@ -19,20 +19,13 @@ export default async function AdminPage() {
 
     if (currentUserProfile?.role !== 'admin') {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-                <div className="text-center bg-white p-8 rounded-2xl shadow-xl border border-red-100 max-w-md w-full">
-                    <div className="bg-red-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Shield className="w-10 h-10 text-red-500" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-slate-900 mb-2">접근 권한이 없습니다</h1>
-                    <p className="text-slate-500 mb-8">관리자만 접근할 수 있는 페이지입니다.</p>
-                    <Link
-                        href="/dashboard"
-                        className="inline-flex items-center justify-center w-full px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
-                    >
-                        대시보드로 돌아가기
-                    </Link>
-                </div>
+            <div className="p-8 text-center text-red-600">
+                <Shield className="w-12 h-12 mx-auto mb-4" />
+                <h1 className="text-xl font-bold">접근 권한이 없습니다</h1>
+                <p className="mt-2">관리자만 접근할 수 있는 페이지입니다.</p>
+                <Link href="/admin" className="mt-4 inline-block text-blue-600 hover:underline">
+                    돌아가기
+                </Link>
             </div>
         )
     }
@@ -49,7 +42,7 @@ export default async function AdminPage() {
             <div className="max-w-4xl mx-auto">
                 <div className="flex items-center justify-between mb-8">
                     <div>
-                        <Link href="/dashboard" className="flex items-center text-slate-500 hover:text-slate-900 mb-2 transition-colors">
+                        <Link href="/admin" className="flex items-center text-slate-500 hover:text-slate-900 mb-2 transition-colors">
                             <ArrowLeft className="w-4 h-4 mr-1" /> 대시보드로 돌아가기
                         </Link>
                         <h1 className="text-2xl font-bold text-slate-900">사용자 승인 관리</h1>
@@ -68,7 +61,7 @@ export default async function AdminPage() {
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-slate-900">{profile.name || '이름 없음'}</h3>
-                                            <p className="text-sm text-slate-500">{profile.id}</p>
+                                            <p className="text-sm text-slate-500">{profile.email || 'Email missing (Auth mismatch?)'}</p>
                                             <p className="text-xs text-slate-400 mt-1">가입일: {new Date(profile.created_at).toLocaleDateString()}</p>
                                         </div>
                                     </div>
