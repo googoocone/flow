@@ -24,11 +24,13 @@ interface AdminFormProps {
 export default function AdminForm({ profile }: AdminFormProps) {
     const [loading, setLoading] = useState(false)
     const [fileName, setFileName] = useState<string>('')
+    const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
             setFileName(file.name)
+            setSelectedFile(file)
         }
     }
 
@@ -40,12 +42,19 @@ export default function AdminForm({ profile }: AdminFormProps) {
         const formData = new FormData(form)
 
         // 1. File Upload
-        const file = formData.get('file') as File
-        if (!file || file.size === 0) {
+        // Use state-stored file to ensure we have it
+        const file = selectedFile
+
+        console.log('Submitting file:', file)
+
+        if (!file) {
             alert('파일을 선택해주세요.')
             setLoading(false)
             return
         }
+
+        // Manually ensure file is in formData (though usually input sends it, this makes sure)
+        formData.set('file', file)
 
         // Check if it's a text file
         if (file.name.endsWith('.txt')) {
@@ -75,6 +84,10 @@ export default function AdminForm({ profile }: AdminFormProps) {
 
         // 2. Server Action Call
         formData.append('filePath', data.path)
+        // formData.delete('file') // Don't delete, just let it be (or delete if too large? Next.js server actions handle it)
+        // Actually best to keep it clean, but if we delete it, make sure we don't need it later.
+        // We uploaded it to storage, so we don't strictly *need* to send the binary to server action if we pass path.
+        // But logic is: server action downloads from storage. So we can remove file from formData to save bandwidth.
         formData.delete('file')
 
         try {

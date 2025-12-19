@@ -38,8 +38,9 @@ export async function analyzeConsultation(formData: FormData) {
   const clientName = formData.get('clientName') as string
   const clientPhone = formData.get('clientPhone') as string
   const caseType = formData.get('caseType') as string
+  const actualTranscript = formData.get('actualTranscript') as string | null
 
-  console.log('Received parameters:', { filePath, counselorName, clientName })
+  console.log('Received parameters:', { filePath, counselorName, clientName, hasTranscript: !!actualTranscript })
 
   if (!filePath || !counselorName || !clientName) {
     throw new Error('Missing required fields')
@@ -54,31 +55,61 @@ export async function analyzeConsultation(formData: FormData) {
   console.log('Step 1: STT (Clova Speech)')
   let transcript = ''
 
-  // Download file from Supabase to send to Clova
-  // The 'filePath' usually comes as full path "folder/filename.ext", but supabase download needs just filename if bucket is separate, 
-  // or path inside bucket. AdminForm uploads to 'recordings' bucket with filename.
-  // The AdminForm sends `data.path` which is usually just the filename if uploaded to root of bucket.
+  if (actualTranscript) {
+    console.log('Using provided transcript (skipping Clova)')
+    transcript = actualTranscript
+  } else {
+    // Download file from Supabase to send to Local Whisper
+    // The 'filePath' usually comes as full path "folder/filename.ext"
+    const { data: fileBlob, error: downloadError } = await (await createServerSupabaseClient())
+      .storage
+      .from('recordings')
+      .download(filePath)
 
-  const { data: fileBlob, error: downloadError } = await (await createServerSupabaseClient())
-    .storage
-    .from('recordings')
-    .download(filePath)
+    if (downloadError || !fileBlob) {
+      console.error('File Download Error:', downloadError)
+      throw new Error('Failed to download recording for transcription')
+    }
 
-  if (downloadError || !fileBlob) {
-    console.error('File Download Error:', downloadError)
-    throw new Error('Failed to download recording for transcription')
+    try {
+      console.log('Sending audio to Local Whisper Server...')
+
+      // Determine Whisper Server URL: Use Env Var if available (for Vercel connection to ngrok), else default to localhost
+      // Example Env Var: WHISPER_API_URL="https://abcd-1234.ngrok-free.app/transcribe"
+      const whisperUrl = process.env.WHISPER_API_URL || 'http://127.0.0.1:8000/transcribe'
+      console.log('Target URL:', whisperUrl)
+
+      const whisperFormData = new FormData()
+      whisperFormData.append('file', fileBlob, filePath.split('/').pop() || 'audio.mp3')
+
+      const whisperResponse = await fetch(whisperUrl, {
+        method: 'POST',
+        body: whisperFormData,
+        // Next.js might cache fetch by default, ensure we don't cache
+        cache: 'no-store'
+      })
+
+      if (!whisperResponse.ok) {
+        throw new Error(`Local Whisper Server Error: ${whisperResponse.status}`)
+      }
+
+      const whisperData = await whisperResponse.json()
+
+      if (whisperData.error) {
+        throw new Error(`Whisper Transcription Error: ${whisperData.error}`)
+      }
+
+      transcript = whisperData.transcript
+      console.log('Local Whisper Success:', transcript.substring(0, 50) + '...')
+
+    } catch (sttError) {
+      console.error('STT Failed:', sttError)
+      throw new Error('STT Analysis Failed: ' + (sttError as any).message + '. Is whisper_server.py running?')
+    }
+
+    // Use transcript in prompt
+    console.log('Transcription Length:', transcript.length)
   }
-
-  try {
-    transcript = await transcribeWithClova(fileBlob, filePath.split('/').pop() || 'audio')
-  } catch (sttError) {
-    console.error('STT Failed, using fallback/empty:', sttError)
-    // Optional: Throw error or proceed with empty? usually throw is better for feedback
-    throw new Error('STT Analysis Failed: ' + (sttError as any).message)
-  }
-
-  // Use transcript in prompt
-  console.log('Transcription Length:', transcript.length)
 
 
 

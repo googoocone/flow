@@ -1,5 +1,6 @@
 import { login } from './actions'
 import { Bot, User, Lock, ArrowRight } from 'lucide-react'
+import { SubmitButton } from './submit-button'
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ message: string }> }) {
     const { message } = await searchParams
@@ -20,7 +21,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                     </p>
                 </div>
 
-                <form className="space-y-5 relative z-10">
+                <form className="space-y-5 relative z-10" action={login}>
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2" htmlFor="email">
                             이메일
@@ -65,13 +66,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                         </div>
                     )}
 
-                    <button
-                        formAction={login}
-                        className="w-full flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg active:scale-[0.98]"
-                    >
-                        로그인하기
-                        <ArrowRight className="ml-2 w-4 h-4" />
-                    </button>
+                    <SubmitButton />
 
                     <p className="text-center text-xs text-slate-400 mt-6">
                         계정 문의는 시스템 관리자에게 1:1로 문의해주세요.

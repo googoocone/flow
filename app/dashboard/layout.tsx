@@ -30,12 +30,6 @@ export default async function DashboardLayout({
             redirect('/pending')
         }
 
-        // 4. Check Profile Completion
-        // Required fields: company_name, job_title, etc.
-        // We can check one or two key fields.
-        if (!profile.company_name || !profile.job_title) {
-            redirect('/onboarding')
-        }
     }
 
     return (
