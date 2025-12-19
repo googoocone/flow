@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
 import { CheckCircle2, FileText, TrendingDown, Wallet, AlertTriangle, Bot, Phone } from 'lucide-react'
 import CountUpNumber from '@/app/components/CountUpNumber'
 
@@ -55,6 +56,18 @@ export default async function ReportPage({ params }: { params: { id: string } })
                                 >
                                     ✏️ 수정하기
                                 </a>
+                            </div>
+                        )}
+
+                        {/* Back Button for Authenticated Users (Admins/Counselors) */}
+                        {user && (
+                            <div className="absolute top-0 left-0 md:absolute md:left-[-100px]">
+                                <Link
+                                    href="/dashboard"
+                                    className="inline-flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-sm font-semibold text-white border border-white/20 transition-all"
+                                >
+                                    ← 나가기
+                                </Link>
                             </div>
                         )}
 
