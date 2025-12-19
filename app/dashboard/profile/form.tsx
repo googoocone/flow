@@ -1,21 +1,38 @@
 'use client'
 
-import { useActionState } from 'react' // Next.js 15
+import { useActionState, useState, useEffect } from 'react' // Next.js 15
 import { updateProfile } from './actions'
 import { Loader2, Save, Building2, User, Phone, Wallet, CreditCard, Camera } from 'lucide-react'
 
 export default function ProfileForm({ profile }: { profile: any }) {
     const [state, formAction, isPending] = useActionState(updateProfile, null)
+    const [previewUrl, setPreviewUrl] = useState<string | null>(profile?.logo_url || null)
+
+    // Sync state with prop if profile updates
+    useEffect(() => {
+        setPreviewUrl(profile?.logo_url || null)
+    }, [profile?.logo_url])
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            const objectUrl = URL.createObjectURL(file)
+            setPreviewUrl(objectUrl)
+        }
+    }
 
     return (
         <form action={formAction} className="p-8">
             <div className="flex flex-col md:flex-row gap-8 mb-8">
                 {/* Logo Section */}
                 <div className="flex-shrink-0 flex flex-col items-center space-y-4">
-                    <div className="relative group w-32 h-32 rounded-full overflow-hidden border-4 border-slate-100 shadow-lg bg-slate-50 flex items-center justify-center">
-                        {profile?.logo_url ? (
+                    <div className={`
+                        relative group w-32 h-32 rounded-full overflow-hidden border-4 shadow-lg flex items-center justify-center transition-all duration-300
+                        ${previewUrl !== profile?.logo_url ? 'border-green-400 scale-105' : 'border-slate-100 bg-slate-50'}
+                    `}>
+                        {previewUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={profile.logo_url} alt="Company Logo" className="w-full h-full object-cover" />
+                            <img src={previewUrl} alt="Company Logo" className="w-full h-full object-cover" />
                         ) : (
                             <Building2 className="w-12 h-12 text-slate-300" />
                         )}
@@ -26,10 +43,21 @@ export default function ProfileForm({ profile }: { profile: any }) {
                             type="file"
                             name="logo_file"
                             accept="image/*"
+                            onChange={handleFileChange}
                             className="absolute inset-0 opacity-0 cursor-pointer"
                         />
                     </div>
-                    <p className="text-xs text-slate-500 font-medium">회사 로고 변경</p>
+
+                    {/* New Badge */}
+                    {previewUrl !== profile?.logo_url && (
+                        <span className="text-xs text-green-600 font-bold animate-pulse">
+                            새로운 로고 선택됨
+                        </span>
+                    )}
+
+                    {!previewUrl || previewUrl === profile?.logo_url ? (
+                        <p className="text-xs text-slate-500 font-medium">회사 로고 변경</p>
+                    ) : null}
                     <input type="hidden" name="logo_url" value={profile?.logo_url || ''} />
                 </div>
 

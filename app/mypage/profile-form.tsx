@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useActionState } from 'react'
+import { useState, useActionState, useEffect } from 'react'
 import { User, Building2, Briefcase, Phone, ImageIcon, Save, Loader2, CreditCard } from 'lucide-react'
 import { updateProfile } from './actions'
 import { useFormStatus } from 'react-dom'
@@ -32,6 +32,11 @@ export default function ProfileForm({ profile }: { profile: any }) {
     const [state, formAction] = useActionState(updateProfile, null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(profile?.logo_url || null)
 
+    // Sync state with prop if profile updates (e.g. after save)
+    useEffect(() => {
+        setPreviewUrl(profile?.logo_url || null)
+    }, [profile?.logo_url])
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
@@ -46,7 +51,10 @@ export default function ProfileForm({ profile }: { profile: any }) {
 
             {/* Logo Preview Section (Moved to top for visibility) */}
             <div className="relative -mt-24 mb-8 ml-8">
-                <div className="w-32 h-32 bg-white rounded-2xl p-2 shadow-lg inline-block relative group">
+                <div className={`
+                    w-32 h-32 bg-white rounded-2xl p-2 shadow-lg inline-block relative group transition-all duration-300
+                    ${previewUrl !== profile?.logo_url ? 'ring-4 ring-green-400 scale-105' : ''}
+                `}>
                     {previewUrl ? (
                         <img
                             src={previewUrl}
@@ -57,6 +65,13 @@ export default function ProfileForm({ profile }: { profile: any }) {
                         <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-slate-400">
                             <Building2 className="w-12 h-12" />
                         </div>
+                    )}
+
+                    {/* New Badge */}
+                    {previewUrl !== profile?.logo_url && (
+                        <span className="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md animate-bounce">
+                            NEW
+                        </span>
                     )}
                     <label
                         htmlFor="logo_file"

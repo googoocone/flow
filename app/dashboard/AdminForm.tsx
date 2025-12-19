@@ -119,9 +119,9 @@ export default function AdminForm({ profile }: AdminFormProps) {
                                         <input
                                             name="counselorName"
                                             required
-                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm"
-                                            defaultValue={profile?.name || ''}
-                                            placeholder="담당자명 입력"
+                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-100 text-slate-500 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm cursor-not-allowed"
+                                            value={profile?.name ?? ''}
+                                            readOnly
                                         />
                                     </div>
                                 </div>
@@ -136,7 +136,7 @@ export default function AdminForm({ profile }: AdminFormProps) {
                                         <input
                                             name="clientName"
                                             required
-                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm"
+                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm"
                                             placeholder="고객명 입력"
                                         />
                                     </div>
@@ -144,7 +144,7 @@ export default function AdminForm({ profile }: AdminFormProps) {
 
                                 {/* 연락처 */}
                                 <div className="space-y-2">
-                                    <label className="block text-sm font-semibold text-slate-700">연락처</label>
+                                    <label className="block text-sm font-semibold text-slate-700">의뢰인 연락처</label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <Phone className="h-5 w-5 text-slate-400" />
@@ -152,7 +152,7 @@ export default function AdminForm({ profile }: AdminFormProps) {
                                         <input
                                             name="clientPhone"
                                             required
-                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm"
+                                            className="block w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl leading-5 bg-slate-50 placeholder-slate-500 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 sm:text-sm"
                                             placeholder="010-0000-0000"
                                         />
                                     </div>
