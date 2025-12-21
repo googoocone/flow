@@ -3,6 +3,7 @@
 import { useActionState, useState, useEffect } from 'react' // Next.js 15
 import { updateProfile } from './actions'
 import { Loader2, Save, Building2, User, Phone, Wallet, CreditCard, Camera } from 'lucide-react'
+import LawFirmSelect from '@/app/components/LawFirmSelect'
 
 export default function ProfileForm({ profile }: { profile: any }) {
     const [state, formAction, isPending] = useActionState(updateProfile, null)
@@ -69,12 +70,13 @@ export default function ProfileForm({ profile }: { profile: any }) {
                                 <Building2 className="w-4 h-4 mr-2 text-slate-400" />
                                 회사명
                             </label>
-                            <input
-                                name="company_name"
-                                defaultValue={profile?.company_name || ''}
-                                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition bg-slate-50 focus:bg-white"
-                                placeholder="예: 법무법인 플로우"
+                            <LawFirmSelect
+                                name="firm"
+                                defaultValue={profile?.firm_id || ''}
+                                className="w-full"
                             />
+                            {/* Hidden input for company_name legacy support */}
+                            <input type="hidden" name="company_name" value={profile?.company_name || ''} />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center">

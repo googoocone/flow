@@ -437,6 +437,29 @@ export default async function ReportPage({ params }: { params: { id: string } })
                     {await (async () => {
                         let query = supabase.from('success_cases').select('*')
 
+                        // 1. Get Counselor's Firm ID
+                        const { data: counselorProfile } = await supabase
+                            .from('profiles')
+                            .select('firm_id') // Changed from 'firm' to 'firm_id'
+                            .eq('id', consultation.user_id)
+                            .single()
+
+                        // If counselor has a firm, filter by it. 
+                        // If no firm (or null), we might show all, or show those with firm=null. 
+                        // For now, let's strictly filter if firm exists to prevent mixing.
+                        // If counselor has no firm, do not show success cases
+                        if (!counselorProfile?.firm_id) {
+                            return (
+                                <div className="text-center text-slate-400 py-12">
+                                    <p>등록된 소속(법무법인)이 없어 성공사례를 불러올 수 없습니다.</p>
+                                </div>
+                            )
+                            // return null // Or simply hide it completely
+                        }
+
+                        // Filter by firm
+                        query = query.eq('firm_id', counselorProfile.firm_id)
+
                         // Filter by tags if available
                         const result = consultation.analysis_result as any
                         // Prioritize the new 'tags' column, fallback to JSON 'debt_causes'
