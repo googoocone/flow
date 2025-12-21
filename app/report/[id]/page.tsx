@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CheckCircle2, FileText, TrendingDown, Wallet, AlertTriangle, Bot, Phone } from 'lucide-react'
 import CountUpNumber from '@/app/components/CountUpNumber'
+import DeleteReportButton from '@/app/components/DeleteReportButton'
 
 export default async function ReportPage({ params }: { params: { id: string } }) {
     const supabase = await createServerSupabaseClient()
@@ -47,15 +48,16 @@ export default async function ReportPage({ params }: { params: { id: string } })
                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
                 <div className="max-w-4xl mx-auto relative z-10">
                     <div className="flex flex-col items-center mb-6 relative">
-                        {/* Edit Button for Owner */}
+                        {/* Edit and Delete Buttons for Owner */}
                         {consultation.user_id === user?.id && (
-                            <div className="absolute top-0 right-0 md:absolute md:right-[-100px]">
-                                <a
+                            <div className="absolute top-0 right-0 flex gap-2 md:absolute md:right-[-120px]">
+                                <Link
                                     href={`/dashboard/reports/${consultation.id}/edit`}
                                     className="inline-flex items-center px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-sm font-semibold text-white border border-white/20 transition-all"
                                 >
-                                    ✏️ 수정하기
-                                </a>
+                                    ✏️ 수정
+                                </Link>
+                                <DeleteReportButton id={consultation.id} />
                             </div>
                         )}
 
@@ -414,6 +416,101 @@ export default async function ReportPage({ params }: { params: { id: string } })
                 </section>
 
             </main>
+
+            {/* 8. Success Cases (New Section) */}
+            <section className="bg-slate-50 py-20 border-t border-slate-200">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="text-center mb-12">
+                        <div className="inline-flex items-center justify-center bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4 uppercase tracking-wide">
+                            Success Stories
+                        </div>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4">
+                            {consultation.client_name}님과 유사한 상황의<br className="hidden md:block" />
+                            <span className="text-blue-600">실제 성공 사례</span>입니다.
+                        </h2>
+                        <p className="text-slate-500 max-w-2xl mx-auto">
+                            이미 많은 분들이 같은 고민을 해결하고 새로운 삶을 시작했습니다.
+                        </p>
+                    </div>
+
+                    {/* Fetch Success Cases */}
+                    {await (async () => {
+                        let query = supabase.from('success_cases').select('*')
+
+                        // Filter by tags if available
+                        const result = consultation.analysis_result as any
+                        // Prioritize the new 'tags' column, fallback to JSON 'debt_causes'
+                        const tags = (consultation.tags && consultation.tags.length > 0)
+                            ? consultation.tags
+                            : (result.debt_causes as string[])
+
+                        if (tags && tags.length > 0) {
+                            query = query.overlaps('tags', tags)
+                        }
+
+                        let { data: successCases } = await query.limit(3)
+
+                        // Fallback: If no matching cases found (or no tags), fetch latest 3
+                        if (!successCases || successCases.length === 0) {
+                            const { data: fallbackCases } = await supabase
+                                .from('success_cases')
+                                .select('*')
+                                .limit(3)
+                            successCases = fallbackCases
+                        }
+
+                        if (!successCases || successCases.length === 0) return null
+
+                        return (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {successCases.map((story: any) => (
+                                    <div key={story.id} className="bg-white rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full overflow-hidden group">
+                                        <div className="h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                                        <div className="p-8 flex-1 flex flex-col">
+                                            {/* Tags */}
+                                            <div className="flex flex-wrap gap-2 mb-4">
+                                                {story.tags?.slice(0, 3).map((tag: string, i: number) => (
+                                                    <span key={i} className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">
+                                                        #{tag.replace(/_/g, ' ')}
+                                                    </span>
+                                                ))}
+                                            </div>
+
+                                            <h3 className="text-lg font-bold text-slate-900 mb-3 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
+                                                {story.title}
+                                            </h3>
+                                            <p className="text-slate-600 text-sm mb-6 line-clamp-3 leading-relaxed flex-1">
+                                                {story.contents}
+                                            </p>
+
+                                            {/* Metadata Stats */}
+                                            {story.metadata && (
+                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
+                                                    <div className="flex justify-between items-center text-sm">
+                                                        <span className="text-slate-500">총 탕감액</span>
+                                                        <span className="font-bold text-slate-900">
+                                                            {((story.metadata.total_debt - story.metadata.reduced_debt) / 10000).toLocaleString()}만원
+                                                        </span>
+                                                    </div>
+                                                    {story.metadata.cancellation_rate && (
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-slate-500">탕감율</span>
+                                                            <span className="font-bold text-blue-600">
+                                                                {story.metadata.cancellation_rate}%
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    })()}
+                </div>
+            </section>
+
 
             {/* Footer CTA */}
             <footer className="bg-slate-900 py-24 px-4 relative overflow-hidden">

@@ -72,39 +72,16 @@ export async function analyzeConsultation(formData: FormData) {
     }
 
     try {
-      console.log('Sending audio to Local Whisper Server...')
+      console.log('Sending audio to Clova Speech...')
 
-      // Determine Whisper Server URL: Use Env Var if available (for Vercel connection to ngrok), else default to localhost
-      // Example Env Var: WHISPER_API_URL="https://abcd-1234.ngrok-free.app/transcribe"
-      const whisperUrl = process.env.WHISPER_API_URL || 'http://127.0.0.1:8000/transcribe'
-      console.log('Target URL:', whisperUrl)
+      // Use the utility function to call Clova Speech API
+      const filename = filePath.split('/').pop() || 'audio.mp3'
+      transcript = await transcribeWithClova(fileBlob as Blob, filename)
 
-      const whisperFormData = new FormData()
-      whisperFormData.append('file', fileBlob, filePath.split('/').pop() || 'audio.mp3')
-
-      const whisperResponse = await fetch(whisperUrl, {
-        method: 'POST',
-        body: whisperFormData,
-        // Next.js might cache fetch by default, ensure we don't cache
-        cache: 'no-store'
-      })
-
-      if (!whisperResponse.ok) {
-        throw new Error(`Local Whisper Server Error: ${whisperResponse.status}`)
-      }
-
-      const whisperData = await whisperResponse.json()
-
-      if (whisperData.error) {
-        throw new Error(`Whisper Transcription Error: ${whisperData.error}`)
-      }
-
-      transcript = whisperData.transcript
-      console.log('Local Whisper Success:', transcript.substring(0, 50) + '...')
-
+      console.log('Clova Transcription Success:', transcript.substring(0, 50) + '...')
     } catch (sttError) {
       console.error('STT Failed:', sttError)
-      throw new Error('STT Analysis Failed: ' + (sttError as any).message + '. Is whisper_server.py running?')
+      throw new Error('STT Analysis Failed: ' + (sttError as any).message)
     }
 
     // Use transcript in prompt
@@ -143,6 +120,9 @@ export async function analyzeConsultation(formData: FormData) {
         "monthly_payment": "예상 월 변제금 (핵심 금액만 'XX만원' 형태로 단답형 출력. 부가 설명 절대 금지)",
         "detail_explanation": "변제금이나 탕감률이 변동될 수 있는 조건이나 시나리오가 있다면 여기에 서술. 없으면 빈 문자열"
       },
+      "debt_causes": [
+        "채무 발생 원인을 다음 태그 중에서만 선택하여 1~2개 포함 (없으면 빈 배열): ['코인_투자_실패', '주식_투자_실패', '도박', '사업_실패', '사채', '사기_피해', '개인_채무', '가족_빚', '생활비_부족', '병원비_부족']"
+      ],
       "risk_factors": [
         { 
           "risk": "주의해야 할 위험 요소 (예: 최근 대출, 도박, 재산 은닉 의심 등)",
@@ -212,6 +192,7 @@ export async function analyzeConsultation(formData: FormData) {
       record_file_path: filePath,
       transcript: transcript, // We save the transcript
       analysis_result: analysisJson,
+      tags: analysisJson.debt_causes || [], // Save debt causes as tags
       status: 'completed'
     })
     .select()

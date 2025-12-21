@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { FileText, Calendar, User, ArrowRight } from 'lucide-react'
+import DeleteReportButton from '@/app/components/DeleteReportButton'
 
 export default async function ReportsPage() {
     const supabase = await createServerSupabaseClient()
@@ -25,8 +26,8 @@ export default async function ReportsPage() {
                         <h1 className="text-3xl font-bold text-slate-900">분석 리포트</h1>
                         <p className="mt-2 text-slate-600">이전 상담 분석 결과를 확인하세요.</p>
                     </div>
-                    <Link 
-                        href="/dashboard/new" 
+                    <Link
+                        href="/dashboard/new"
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center"
                     >
                         + 새 분석 시작
@@ -36,17 +37,16 @@ export default async function ReportsPage() {
                 <div className="grid gap-4">
                     {reports && reports.length > 0 ? (
                         reports.map((report: any) => (
-                            <Link 
-                                key={report.id} 
-                                href={`/report/${report.id}`}
+                            <div
+                                key={report.id}
                                 className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex items-center justify-between group"
                             >
-                                <div className="flex items-center gap-6">
+                                <Link href={`/report/${report.id}`} className="flex-1 flex items-center gap-6">
                                     <div className="bg-blue-50 p-3 rounded-lg text-blue-600">
                                         <FileText className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                        <h3 className="font-bold text-lg text-slate-900 mb-1 group-hover:text-blue-600 transition-colors">
                                             {report.client_name} 고객 상담 분석
                                         </h3>
                                         <div className="flex items-center gap-4 text-sm text-slate-500">
@@ -63,9 +63,22 @@ export default async function ReportsPage() {
                                             </div>
                                         </div>
                                     </div>
+                                </Link>
+
+                                <div className="flex items-center gap-2 pl-4 border-l border-slate-100 ml-4">
+                                    <Link
+                                        href={`/dashboard/reports/${report.id}/edit`}
+                                        className="inline-flex items-center px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium transition-all shadow-sm"
+                                        title="수정하기"
+                                    >
+                                        <span className="mr-2">✏️</span>
+                                        수정하기
+                                    </Link>
+                                    <div className="scale-90">
+                                        <DeleteReportButton id={report.id} />
+                                    </div>
                                 </div>
-                                <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
-                            </Link>
+                            </div>
                         ))
                     ) : (
                         <div className="text-center py-20 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
