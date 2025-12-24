@@ -440,94 +440,152 @@ export default async function ReportPage({ params }: { params: { id: string } })
                         // 1. Get Counselor's Firm ID
                         const { data: counselorProfile } = await supabase
                             .from('profiles')
-                            .select('firm_id') // Changed from 'firm' to 'firm_id'
+                            .select('firm_id')
                             .eq('id', consultation.user_id)
                             .single()
 
-                        // If counselor has a firm, filter by it. 
-                        // If no firm (or null), we might show all, or show those with firm=null. 
-                        // For now, let's strictly filter if firm exists to prevent mixing.
-                        // If counselor has no firm, do not show success cases
                         if (!counselorProfile?.firm_id) {
                             return (
                                 <div className="text-center text-slate-400 py-12">
                                     <p>등록된 소속(법무법인)이 없어 성공사례를 불러올 수 없습니다.</p>
                                 </div>
                             )
-                            // return null // Or simply hide it completely
                         }
 
                         // Filter by firm
                         query = query.eq('firm_id', counselorProfile.firm_id)
 
-                        // Filter by tags if available
-                        const result = consultation.analysis_result as any
-                        // Prioritize the new 'tags' column, fallback to JSON 'debt_causes'
-                        const tags = (consultation.tags && consultation.tags.length > 0)
-                            ? consultation.tags
-                            : (result.debt_causes as string[])
+                        // Fetch all candidates for the firm to perform advanced ranking in JS
+                        let { data: candidates } = await query
 
-                        if (tags && tags.length > 0) {
-                            query = query.overlaps('tags', tags)
-                        }
-
-                        let { data: successCases } = await query.limit(3)
-
-                        // Fallback: If no matching cases found (or no tags), fetch latest 3
-                        if (!successCases || successCases.length === 0) {
+                        if (!candidates || candidates.length === 0) {
+                            // Fallback: If no match, fetch latest 3 globally (or just return empty)
                             const { data: fallbackCases } = await supabase
                                 .from('success_cases')
                                 .select('*')
                                 .limit(3)
-                            successCases = fallbackCases
+                            candidates = fallbackCases
                         }
 
-                        if (!successCases || successCases.length === 0) return null
+                        if (!candidates || candidates.length === 0) return null
+
+                        // 2. Client Profile for Matching
+                        const result = consultation.analysis_result as any
+                        const profile = result.client_profile || {}
+                        const clientAge = profile.age // e.g., "30대"
+                        const clientJob = profile.job // e.g., "급여소득"
+                        const clientCauses = profile.cause || [] // e.g., ["코인,주식", "생활비"]
+
+                        // Legacy fallback: use tags if profile mapping missing
+                        const legacyTags = (consultation.tags && consultation.tags.length > 0)
+                            ? consultation.tags
+                            : (result.debt_causes as string[]) || []
+
+                        // 3. Scoring Algorithm
+                        const scoredCases = candidates.map((c: any) => {
+                            let score = 0
+                            const meta = c.metadata || {}
+
+                            // (1) Age Match (High Priority)
+                            if (clientAge && meta.age === clientAge) score += 30
+
+                            // (2) Cause Match (Critical Priority)
+                            // meta.cause is expected to be an array, e.g. ["코인,주식"]
+                            if (clientCauses.length > 0 && meta.cause) {
+                                const metaCauses = Array.isArray(meta.cause) ? meta.cause : [meta.cause]
+                                const hasOverlap = clientCauses.some((cause: string) => metaCauses.includes(cause))
+                                if (hasOverlap) score += 40
+                            }
+
+                            // (3) Job Match (Medium Priority)
+                            if (clientJob && meta.job === clientJob) score += 20
+
+                            // (4) Legacy Tag Overlap (Fallback)
+                            if (legacyTags.length > 0 && c.tags) {
+                                const tagOverlap = c.tags.filter((t: string) => legacyTags.includes(t)).length
+                                score += tagOverlap * 5
+                            }
+
+                            return { ...c, score }
+                        })
+
+                        // Sort by score desc, then random/id
+                        scoredCases.sort((a, b) => b.score - a.score)
+
+                        // Take top 3
+                        const successCases = scoredCases.slice(0, 3)
 
                         return (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                {successCases.map((story: any) => (
-                                    <div key={story.id} className="bg-white rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full overflow-hidden group">
-                                        <div className="h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
-                                        <div className="p-8 flex-1 flex flex-col">
-                                            {/* Tags */}
-                                            <div className="flex flex-wrap gap-2 mb-4">
-                                                {story.tags?.slice(0, 3).map((tag: string, i: number) => (
-                                                    <span key={i} className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">
-                                                        #{tag.replace(/_/g, ' ')}
-                                                    </span>
-                                                ))}
-                                            </div>
+                                {successCases.map((story: any) => {
+                                    const linkUrl = story.url || '#'
+                                    const isClickable = !!story.url && story.url !== '#'
 
-                                            <h3 className="text-lg font-bold text-slate-900 mb-3 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
-                                                {story.title}
-                                            </h3>
-                                            <p className="text-slate-600 text-sm mb-6 line-clamp-3 leading-relaxed flex-1">
-                                                {story.contents}
-                                            </p>
-
-                                            {/* Metadata Stats */}
-                                            {story.metadata && (
-                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
-                                                    <div className="flex justify-between items-center text-sm">
-                                                        <span className="text-slate-500">총 탕감액</span>
-                                                        <span className="font-bold text-slate-900">
-                                                            {((story.metadata.total_debt - story.metadata.reduced_debt) / 10000).toLocaleString()}만원
+                                    const CardContent = (
+                                        <div className={`bg-white rounded-2xl shadow-lg border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col h-full overflow-hidden group ${isClickable ? 'cursor-pointer' : ''}`}>
+                                            <div className="h-2 bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                                            <div className="p-8 flex-1 flex flex-col">
+                                                {/* Meta Badges */}
+                                                <div className="flex flex-wrap gap-2 mb-4">
+                                                    {/* Age Badge */}
+                                                    {story.metadata?.age && (
+                                                        <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs font-bold border border-blue-100">
+                                                            {story.metadata.age}
                                                         </span>
-                                                    </div>
-                                                    {story.metadata.cancellation_rate && (
+                                                    )}
+                                                    {/* Job Badge */}
+                                                    {story.metadata?.job && (
+                                                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold border border-slate-200">
+                                                            {story.metadata.job}
+                                                        </span>
+                                                    )}
+                                                    {/* First Cause Badge */}
+                                                    {story.metadata?.cause && story.metadata.cause[0] && (
+                                                        <span className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs font-bold border border-red-100">
+                                                            {story.metadata.cause[0]}
+                                                        </span>
+                                                    )}
+
+                                                    {/* Fallback to Tags if no metadata */}
+                                                    {(!story.metadata?.age && !story.metadata?.job) && story.tags?.slice(0, 2).map((tag: string, i: number) => (
+                                                        <span key={i} className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">
+                                                            #{tag.replace(/_/g, ' ')}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                <h3 className="text-lg font-bold text-slate-900 mb-3 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
+                                                    {story.title}
+                                                </h3>
+                                                <p className="text-slate-600 text-sm mb-6 line-clamp-3 leading-relaxed flex-1">
+                                                    {story.contents}
+                                                </p>
+
+                                                {/* Metadata Stats */}
+                                                {story.metadata && (
+                                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
                                                         <div className="flex justify-between items-center text-sm">
-                                                            <span className="text-slate-500">탕감율</span>
-                                                            <span className="font-bold text-blue-600">
-                                                                {story.metadata.cancellation_rate}%
+                                                            <span className="text-slate-500">탕감률</span>
+                                                            <span className="font-bold text-blue-600 text-lg">
+                                                                {story.metadata.exemption_rate || story.metadata.cancellation_rate || '?'}%
                                                             </span>
                                                         </div>
-                                                    )}
-                                                </div>
-                                            )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+
+                                    return isClickable ? (
+                                        <a href={linkUrl} key={story.id} target="_blank" rel="noopener noreferrer" className="block h-full">
+                                            {CardContent}
+                                        </a>
+                                    ) : (
+                                        <div key={story.id} className="block h-full">
+                                            {CardContent}
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )
                     })()}
