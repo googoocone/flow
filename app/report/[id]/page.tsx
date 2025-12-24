@@ -592,6 +592,140 @@ export default async function ReportPage({ params }: { params: { id: string } })
                 </div>
             </section>
 
+            {/* 9. Recommended Videos (New Section) */}
+            <section className="bg-white py-20 border-t border-slate-200">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="text-center mb-12">
+                        <div className="inline-flex items-center justify-center bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-bold mb-4 uppercase tracking-wide">
+                            Must-Watch
+                        </div>
+                        <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4">
+                            {consultation.client_name}님을 위한 <span className="text-red-600">추천 영상</span>
+                        </h2>
+                        <p className="text-slate-500 max-w-2xl mx-auto">
+                            비슷한 상황의 해결 방법과 절차를 영상으로 쉽게 확인해보세요.
+                        </p>
+                    </div>
+
+                    {/* Fetch & Render YouTube Videos */}
+                    {await (async () => {
+                        // 1. Get Firm ID for videos
+                        const { data: counselorProfile } = await supabase
+                            .from('profiles')
+                            .select('firm_id')
+                            .eq('id', consultation.user_id)
+                            .single()
+
+                        if (!counselorProfile?.firm_id) return null
+
+                        // 2. Fetch all videos for this firm
+                        const { data: allVideos } = await supabase
+                            .from('youtube_videos')
+                            .select('*')
+                            .eq('firm_id', counselorProfile.firm_id)
+
+                        if (!allVideos || allVideos.length === 0) return null
+
+                        // 3. Client Profile & Scoring
+                        const result = consultation.analysis_result as any
+                        const profile = result.client_profile || {}
+                        const clientCauses = profile.cause || [] // [ "주식", "코인" ] etc
+                        // const risks = result.risk_factors...? (optional expansion)
+
+                        // Score videos
+                        const scoredVideos = allVideos.map((video: any) => {
+                            let score = 0
+                            const tags = video.tags || []
+
+                            // (A) Cause/Keyword Match (High)
+                            if (clientCauses.length > 0) {
+                                const hasCauseMatch = clientCauses.some((cause: string) =>
+                                    tags.some((tag: string) => cause.includes(tag) || tag.includes(cause))
+                                )
+                                if (hasCauseMatch) score += 50
+                            }
+
+                            // (B) Important General Keywords (Medium)
+                            const generalKeywords = ['절차', '자격', '비용', '탕감']
+                            if (tags.some((t: string) => generalKeywords.some(k => t.includes(k)))) {
+                                score += 20
+                            }
+
+                            // (C) Recency (Small boost for new videos)
+                            // Simple logic: if within last 30 days
+                            const daysOld = (new Date().getTime() - new Date(video.published_at).getTime()) / (1000 * 3600 * 24)
+                            if (daysOld < 30) score += 10
+
+                            return { ...video, score }
+                        })
+
+                        // Sort desc
+                        scoredVideos.sort((a, b) => b.score - a.score)
+
+                        // Take 3
+                        const recommendedVideos = scoredVideos.slice(0, 3)
+
+                        return (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {recommendedVideos.map((video: any) => (
+                                    <a
+                                        key={video.id}
+                                        href={video.video_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group block bg-white rounded-2xl overflow-hidden shadow-lg border border-slate-100 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+                                    >
+                                        {/* Thumbnail Container */}
+                                        <div className="relative aspect-video overflow-hidden bg-slate-100">
+                                            {video.thumbnail_url ? (
+                                                <>
+                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                    <img
+                                                        src={video.thumbnail_url}
+                                                        alt={video.title}
+                                                        className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                                                    />
+                                                </>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                                    <span>No Thumbnail</span>
+                                                </div>
+                                            )}
+                                            {/* Play Button Overlay */}
+                                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+                                                    <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M8 5v14l11-7z" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            {/* Duration/Label (Optional) */}
+                                            {/* <div className="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                                영상
+                                            </div> */}
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="p-5">
+                                            <div className="flex flex-wrap gap-1 mb-3">
+                                                {video.tags?.slice(0, 3).map((tag: string, i: number) => (
+                                                    <span key={i} className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                        #{tag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <h3 className="font-bold text-slate-900 leading-snug line-clamp-2 md:text-lg group-hover:text-red-600 transition-colors">
+                                                {video.title}
+                                            </h3>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        )
+                    })()}
+                </div>
+            </section>
+
 
             {/* Footer CTA */}
             <footer className="bg-slate-900 py-24 px-4 relative overflow-hidden">
