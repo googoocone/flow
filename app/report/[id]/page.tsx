@@ -453,67 +453,44 @@ export default async function ReportPage({ params }: { params: { id: string } })
                         }
 
                         // Filter by firm
-                        query = query.eq('firm_id', counselorProfile.firm_id)
+                        // Fetch ALL cases globally to ensure best topic match
+                        // regardless of firm. We will prioritize firm match via scoring.
+                        // 2. Strict Filtering: Firm ID + Tags Match
+                        const firmId = counselorProfile.firm_id
 
-                        // Fetch all candidates for the firm to perform advanced ranking in JS
-                        let { data: candidates } = await query
-
-                        if (!candidates || candidates.length === 0) {
-                            // Fallback: If no match, fetch latest 3 globally (or just return empty)
-                            const { data: fallbackCases } = await supabase
-                                .from('success_cases')
-                                .select('*')
-                                .limit(3)
-                            candidates = fallbackCases
-                        }
+                        // Fetch cases for this firm only
+                        const { data: candidates } = await supabase
+                            .from('success_cases')
+                            .select('*')
+                            .eq('firm_id', firmId)
 
                         if (!candidates || candidates.length === 0) return null
 
-                        // 2. Client Profile for Matching
-                        const result = consultation.analysis_result as any
-                        const profile = result.client_profile || {}
-                        const clientAge = profile.age // e.g., "30대"
-                        const clientJob = profile.job // e.g., "급여소득"
-                        const clientCauses = profile.cause || [] // e.g., ["코인,주식", "생활비"]
+                        // 3. Match Tags with Metadata.cause
+                        // Consultation tags (criteria)
+                        const criteriaTags = consultation.tags || []
 
-                        // Legacy fallback: use tags if profile mapping missing
-                        const legacyTags = (consultation.tags && consultation.tags.length > 0)
-                            ? consultation.tags
-                            : (result.debt_causes as string[]) || []
+                        if (!criteriaTags || criteriaTags.length === 0) {
+                            // If user has no tags, we cannot match "cause" strictly.
+                            // User requirement: "consultations의 tags의 키워드랑 일치하는것만 보여줄거야"
+                            // So if no tags, return nothing is the safe strict interpretation.
+                            return null
+                        }
 
-                        // 3. Scoring Algorithm
-                        const scoredCases = candidates.map((c: any) => {
-                            let score = 0
+                        // Filter candidates
+                        const successCases = candidates.filter((c: any) => {
                             const meta = c.metadata || {}
+                            const caseCause = meta.cause
 
-                            // (1) Age Match (High Priority)
-                            if (clientAge && meta.age === clientAge) score += 30
+                            if (!caseCause) return false
 
-                            // (2) Cause Match (Critical Priority)
-                            // meta.cause is expected to be an array, e.g. ["코인,주식"]
-                            if (clientCauses.length > 0 && meta.cause) {
-                                const metaCauses = Array.isArray(meta.cause) ? meta.cause : [meta.cause]
-                                const hasOverlap = clientCauses.some((cause: string) => metaCauses.includes(cause))
-                                if (hasOverlap) score += 40
-                            }
+                            // Normalize caseCause to array
+                            const causesToCheck = Array.isArray(caseCause) ? caseCause : [caseCause]
 
-                            // (3) Job Match (Medium Priority)
-                            if (clientJob && meta.job === clientJob) score += 20
-
-                            // (4) Legacy Tag Overlap (Fallback)
-                            if (legacyTags.length > 0 && c.tags) {
-                                const tagOverlap = c.tags.filter((t: string) => legacyTags.includes(t)).length
-                                score += tagOverlap * 5
-                            }
-
-                            return { ...c, score }
-                        })
-
-                        // Sort by score desc, then random/id
-                        scoredCases.sort((a, b) => b.score - a.score)
-
-                        // Take top 3
-                        const successCases = scoredCases.slice(0, 3)
+                            // Check intersection
+                            // We look for ANY match between criteriaTags and causesToCheck
+                            return causesToCheck.some((cause: string) => criteriaTags.includes(cause))
+                        }).slice(0, 3)
 
                         return (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -549,7 +526,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
                                                     {/* Fallback to Tags if no metadata */}
                                                     {(!story.metadata?.age && !story.metadata?.job) && story.tags?.slice(0, 2).map((tag: string, i: number) => (
                                                         <span key={i} className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold">
-                                                            #{tag.replace(/_/g, ' ')}
+                                                            #{tag}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -629,32 +606,74 @@ export default async function ReportPage({ params }: { params: { id: string } })
                         // 3. Client Profile & Scoring
                         const result = consultation.analysis_result as any
                         const profile = result.client_profile || {}
-                        const clientCauses = profile.cause || [] // [ "주식", "코인" ] etc
-                        // const risks = result.risk_factors...? (optional expansion)
+
+                        // Parse causes robustly (handle string vs array, comma separation)
+                        let clientCauses: string[] = []
+                        if (Array.isArray(profile.cause)) {
+                            clientCauses = profile.cause.flatMap((c: string) => c.split(',').map(s => s.trim()))
+                        } else if (typeof profile.cause === 'string') {
+                            clientCauses = profile.cause.split(',').map((s: string) => s.trim())
+                        }
+
+                        // Cause Keyword Expansion Map
+                        const keywordMap: Record<string, string[]> = {
+                            '코인': ['주식', '투자', '비트코인', '가상화폐', '투자실패'],
+                            '주식': ['코인', '투자', '증권', '투자실패'],
+                            '도박': ['토토', '스포츠', '복권', '사행성'],
+                            '부동산': ['영끌', '갭투자', '전세', '아파트', '자가', '청산가치'],
+                            '생활비': ['카드', '대출', '현금서비스'],
+                            '사업': ['폐업', '자영업', '법인'],
+                            '사기': ['보이스피싱', '명의도용']
+                        }
+
+                        // Expand client causes
+                        let expandedCauses = [...clientCauses]
+                        clientCauses.forEach(c => {
+                            Object.keys(keywordMap).forEach(key => {
+                                if (c.includes(key)) {
+                                    expandedCauses = [...expandedCauses, ...keywordMap[key]]
+                                }
+                            })
+                        })
+                        // Unique tags
+                        expandedCauses = Array.from(new Set(expandedCauses))
 
                         // Score videos
                         const scoredVideos = allVideos.map((video: any) => {
                             let score = 0
                             const tags = video.tags || []
+                            const title = video.title || ''
 
-                            // (A) Cause/Keyword Match (High)
-                            if (clientCauses.length > 0) {
-                                const hasCauseMatch = clientCauses.some((cause: string) =>
-                                    tags.some((tag: string) => cause.includes(tag) || tag.includes(cause))
-                                )
+                            // (A) Cause/Keyword Match (High Priority: 50pts)
+                            if (expandedCauses.length > 0) {
+                                const hasCauseMatch = expandedCauses.some((cause: string) => {
+                                    const cleanCause = cause.replace(/\s+/g, '') // remove spaces for comparison
+                                    if (!cleanCause) return false
+
+                                    // Check tags
+                                    const tagMatch = tags.some((tag: string) => tag.includes(cleanCause) || cleanCause.includes(tag))
+                                    // Check title
+                                    const titleMatch = title.includes(cleanCause)
+
+                                    return tagMatch || titleMatch
+                                })
                                 if (hasCauseMatch) score += 50
                             }
 
-                            // (B) Important General Keywords (Medium)
-                            const generalKeywords = ['절차', '자격', '비용', '탕감']
+                            // (B) Important General Keywords (Medium Priority: 10-20pts)
+                            const generalKeywords = ['절차', '자격', '비용', '탕감', '변제금']
                             if (tags.some((t: string) => generalKeywords.some(k => t.includes(k)))) {
                                 score += 20
                             }
 
-                            // (C) Recency (Small boost for new videos)
-                            // Simple logic: if within last 30 days
+                            // (C) Recency (Small boost: 0-10pts)
                             const daysOld = (new Date().getTime() - new Date(video.published_at).getTime()) / (1000 * 3600 * 24)
                             if (daysOld < 30) score += 10
+                            else if (daysOld < 90) score += 5
+
+                            // (D) Random Noise for Tie-breaking (0-5pts)
+                            // This ensures that if scores are identical, the order changes slightly on refresh
+                            score += Math.random() * 5
 
                             return { ...video, score }
                         })
