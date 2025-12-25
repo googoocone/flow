@@ -573,9 +573,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
             <section className="bg-white py-20 border-t border-slate-200">
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="text-center mb-12">
-                        <div className="inline-flex items-center justify-center bg-red-100 text-red-600 px-4 py-1.5 rounded-full text-sm font-bold mb-4 uppercase tracking-wide">
-                            Must-Watch
-                        </div>
+
                         <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4">
                             {consultation.client_name}님을 위한 <span className="text-red-600">추천 영상</span>
                         </h2>

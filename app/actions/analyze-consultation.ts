@@ -5,17 +5,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { transcribeWithClova } from '@/utils/clova'
 import { redirect } from 'next/navigation'
 
-const DUMMY_TRANSCRIPT = `
-상담자: 안녕하세요, 오늘 어떤 문제로 방문하셨나요?
-고객: 네, 빚이 너무 많아서 감당이 안 돼서 찾아왔습니다.
-상담자: 현재 소득 활동은 하고 계신가요?
-고객: 네, 편의점 아르바이트를 하고 있고 월 150만원 정도 법니다.
-상담자: 채무 총액은 어느 정도 되시나요?
-고객: 대출이랑 카드값 합쳐서 약 8천만원 정도 됩니다. 주식 투자를 좀 실패해서요.
-상담자: 재산은 따로 없으신가요?
-고객: 보증금 500만원 있는 월세방에 살고 있고, 그 외에는 없습니다.
-상담자: 알겠습니다. 개인회생을 진행하면 월 소득에서 최저생계비를 제외한 금액을 3년에서 5년 동안 변제하게 됩니다. 선생님 같은 경우 1인 최저생계비를 제외하면 월 변제금이...
-`
 
 export async function analyzeConsultation(formData: FormData) {
   console.log('--- Analyze Consultation Started (AI Studio) ---')
